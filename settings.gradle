@@ -1,4 +1,3 @@
 rootProject.name = 'archiver'
-include 'cli'
+include ':core', 'cli'
 include 'core'
-
