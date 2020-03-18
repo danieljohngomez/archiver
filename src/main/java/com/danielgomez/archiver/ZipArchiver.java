@@ -29,7 +29,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Implements archive operations with zip format
  */
-final class ZipArchiver implements Archiver {
+public class ZipArchiver implements Archiver {
 
     private static Logger LOGGER = LoggerFactory.getLogger( ZipArchiver.class );
 

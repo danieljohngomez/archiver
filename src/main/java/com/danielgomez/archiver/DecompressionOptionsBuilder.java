@@ -3,7 +3,7 @@ package com.danielgomez.archiver;
 /**
  * Fluent interface for building {@link DecompressionOptions}
  */
-class DecompressionOptionsBuilder extends IOOptionsBuilder<DecompressionOptionsBuilder> {
+public class DecompressionOptionsBuilder extends IOOptionsBuilder<DecompressionOptionsBuilder> {
 
     private DecompressionOptionsBuilder() { super();}
 

@@ -7,7 +7,7 @@ import java.nio.file.Path;
  * <p>
  * See {@link DecompressionOptionsBuilder} for fluent building
  */
-final class DecompressionOptions extends IOOptions {
+public class DecompressionOptions extends IOOptions {
 
     protected DecompressionOptions( Path input, Path output, int bufferSize ) {
         super( input, output, bufferSize );

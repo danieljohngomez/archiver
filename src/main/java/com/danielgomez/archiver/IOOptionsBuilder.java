@@ -5,7 +5,7 @@ import java.nio.file.Path;
 /**
  * Fluent interface for building {@link IOOptions}
  */
-class IOOptionsBuilder<T extends IOOptionsBuilder<T>> {
+public class IOOptionsBuilder<T extends IOOptionsBuilder<T>> {
 
     protected Path input;
 

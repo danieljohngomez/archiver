@@ -7,7 +7,7 @@ import java.nio.file.Path;
  * <p>
  * See {@link IOOptionsBuilder} for fluent building
  */
-class IOOptions implements Options {
+public class IOOptions implements Options {
 
     private Path input;
 

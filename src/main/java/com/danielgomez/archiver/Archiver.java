@@ -5,7 +5,7 @@ import java.io.IOException;
 /**
  * Responsible for compressing and decompressing a file
  */
-interface Archiver {
+public interface Archiver {
 
     /**
      * Generates compressed file(s) from an input directory. An archiver can generate multiple files thus the output
