@@ -1,6 +1,8 @@
 package com.danielgomez.archiver;
 
 import java.io.IOException;
+import java.util.Iterator;
+import java.util.ServiceLoader;
 
 import com.beust.jcommander.JCommander;
 
@@ -22,15 +24,30 @@ public final class Cli {
             return;
         }
 
+        Archiver archiver = loadArchiver(archiverArgs.getArchiver());
         if ( "compress".equals( commander.getParsedCommand() ) )
-            compress( compressionArgs );
+            compress( archiver, compressionArgs );
         else if ( "decompress".equals( commander.getParsedCommand() ) )
-            decompress( decompressionArgs );
+            decompress( archiver, decompressionArgs );
     }
 
-    private static void compress( CompressionArgs args ) throws IOException {
-        ZipArchiver zipArchiver = new ZipArchiver();
-        zipArchiver.compress( CompressionOptionsBuilder.create()
+    private static Archiver loadArchiver( String archiver ) {
+        ServiceLoader<Archiver> archivers = ServiceLoader.load( Archiver.class );
+        Iterator<Archiver> iterator = archivers.iterator();
+        while ( iterator.hasNext() ) {
+            Archiver arc = iterator.next();
+            String name = arc.getClass().getSimpleName();
+            if ( name.endsWith( "Archiver" ) )
+                name = name.substring( 0, name.indexOf( "Archiver" ) );
+            String type = Character.toLowerCase( name.charAt( 0 ) ) + name.substring( 1 );
+            if ( type.equals( archiver ) )
+                return arc;
+        }
+        throw new IllegalArgumentException( "Unable to find '" + archiver + "' archiver" );
+    }
+
+    private static void compress( Archiver archiver, CompressionArgs args ) throws IOException {
+        archiver.compress( CompressionOptionsBuilder.create()
                 .input( args.getInput() )
                 .output( args.getOutput() )
                 .maxFileSize( args.getMaxFileSize() )
@@ -39,9 +56,8 @@ public final class Cli {
         );
     }
 
-    private static void decompress( DecompressionArgs args ) throws IOException {
-        ZipArchiver zipArchiver = new ZipArchiver();
-        zipArchiver.decompress( DecompressionOptionsBuilder.create()
+    private static void decompress( Archiver archiver, DecompressionArgs args ) throws IOException {
+        archiver.decompress( DecompressionOptionsBuilder.create()
                 .input( args.getInput() )
                 .output( args.getOutput() )
                 .bufferSize( args.getBufferSize() )
