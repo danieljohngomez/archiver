@@ -39,7 +39,7 @@ public final class Cli {
             String name = arc.getClass().getSimpleName();
             if ( name.endsWith( "Archiver" ) )
                 name = name.substring( 0, name.indexOf( "Archiver" ) );
-            String type = Character.toLowerCase( name.charAt( 0 ) ) + name.substring( 1 );
+            String type = name.toLowerCase();
             if ( type.equals( archiver ) )
                 return arc;
         }
