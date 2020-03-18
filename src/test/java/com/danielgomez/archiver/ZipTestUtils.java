@@ -2,10 +2,12 @@ package com.danielgomez.archiver;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -35,6 +37,14 @@ final class ZipTestUtils {
 
     public static List<Path> list( FileSystem zipFileSystem ) {
         return list( zipFileSystem, "/" );
+    }
+
+    public static Path getResource(Path relative) {
+        try {
+            return Paths.get( ZipTestUtils.class.getResource( "/" + relative.toString() ).toURI() );
+        } catch ( URISyntaxException e ) {
+            throw new RuntimeException( "Unable to retrieve resource: " + relative, e );
+        }
     }
 
 }

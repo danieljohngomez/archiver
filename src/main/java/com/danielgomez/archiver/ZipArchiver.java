@@ -111,8 +111,39 @@ final class ZipArchiver implements Archiver {
     }
 
     @Override
-    public void decompress( DecompressionOptions options ) {
-        throw new UnsupportedOperationException( "not yet implemented" );
+    public void decompress( DecompressionOptions options ) throws IOException {
+        checkArguments( options );
+        Path inputDir = options.getInput();
+        Path outputDir = options.getOutput();
+
+        List<Path> inputFiles = Files.list( inputDir ).sorted()
+                .filter( path -> path.toString().endsWith( ".zip" ) )
+                .collect( Collectors.toList() );
+        if ( inputFiles.size() <= 0 )
+            throw new IllegalArgumentException( "Input directory '" + inputDir + " is empty" );
+
+        for ( Path inputFile : inputFiles ) {
+            ZipInputStream zis = new ZipInputStream( Files.newInputStream( inputFile ) );
+            ZipEntry zipEntry = zis.getNextEntry();
+            while ( zipEntry != null ) {
+                Path outputFile = outputDir.resolve( zipEntry.getName() );
+                if ( zipEntry.isDirectory() ) {
+                    Files.createDirectories( outputFile );
+                } else {
+                    outputFile = unpartFile( outputFile );
+                    OutputStream fos = Files.newOutputStream( outputFile, CREATE, APPEND );
+                    byte[] buffer = new byte[options.getBufferSize()];
+                    int len;
+                    while ( ( len = zis.read( buffer ) ) > 0 ) {
+                        fos.write( buffer, 0, len );
+                    }
+                    fos.close();
+                }
+                zipEntry = zis.getNextEntry();
+            }
+            zis.closeEntry();
+            zis.close();
+        }
     }
 
     /**
