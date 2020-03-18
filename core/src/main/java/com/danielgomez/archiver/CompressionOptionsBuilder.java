@@ -20,7 +20,7 @@ public class CompressionOptionsBuilder extends IOOptionsBuilder<CompressionOptio
         return this;
     }
 
-    public CompressionOptionsBuilder maxFileSize( int maxFileSize ) {
+    public CompressionOptionsBuilder maxFileSize( long maxFileSize ) {
         this.maxFileSize = maxFileSize;
         return this;
     }

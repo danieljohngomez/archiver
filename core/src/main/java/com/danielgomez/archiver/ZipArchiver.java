@@ -92,22 +92,35 @@ public class ZipArchiver implements Archiver {
         Path outputDir = options.getOutput();
         Path output = outputDir.resolve( inputDir.getFileName() + ".zip" );
 
-        List<List<Path>> chunked = chunk( inputDir, options );
+        Path tempDir = Files.createTempDirectory( "compress-" ).resolve( options.getInput().getFileName().toString() );
+        List<List<Path>> chunked = chunk( inputDir, options, tempDir );
         if ( chunked.size() == 1 ) {
-            writeToZip( chunked.get( 0 ), output, options );
+            writeToZip( chunked.get( 0 ), output, options, tempDir );
         } else {
             IntStream.range( 0, chunked.size() )
                     .parallel()
                     .forEach( i -> {
                         try {
                             Path zipFile = partFile( output, "" + i );
-                            writeToZip( chunked.get( i ), zipFile, options );
+                            writeToZip( chunked.get( i ), zipFile, options, tempDir );
                         } catch ( IOException e ) {
                             sneakyThrow( e );
                         }
                     } );
         }
+        if ( Files.notExists( tempDir ) )
+            return;
 
+        try ( Stream<Path> walk = Files.list( tempDir ) ) {
+            walk.forEach( p -> {
+                try {
+                    Files.delete( p );
+                } catch ( IOException e ) {
+                    sneakyThrow( e );
+                }
+            } );
+        }
+        Files.delete( tempDir );
     }
 
     @Override
@@ -153,10 +166,17 @@ public class ZipArchiver implements Archiver {
      * @param zipFile  the zip file
      * @param options  IO options
      */
-    private static void writeToZip( List<Path> contents, Path zipFile, IOOptions options ) throws IOException {
+    private static void writeToZip( List<Path> contents, Path zipFile, IOOptions options, Path tempDir )
+            throws IOException {
         try ( ZipOutputStream zos = new ZipOutputStream( Files.newOutputStream( zipFile ) ) ) {
             for ( Path path : contents ) {
-                String fileName = options.getInput().relativize( path ).toString();
+                Path transformed;
+                if ( path.getFileName().toString().contains( ".part." ) )
+                    transformed = tempDir.relativize( path );
+                else {
+                    transformed = options.getInput().relativize( path );
+                }
+                String fileName = transformed.toString();
                 if ( Files.isRegularFile( path ) ) {
                     try ( InputStream fis = Files.newInputStream( path ) ) {
                         ZipEntry zipEntry = new ZipEntry( fileName );
@@ -183,8 +203,8 @@ public class ZipArchiver implements Archiver {
         throw ( E ) e;
     }
 
-    private static List<List<Path>> chunk( Path dir, CompressionOptions options ) throws IOException {
-        ChunkingFileVisitor visitor = new ChunkingFileVisitor( options );
+    private static List<List<Path>> chunk( Path dir, CompressionOptions options, Path tempDir ) throws IOException {
+        ChunkingFileVisitor visitor = new ChunkingFileVisitor( options, tempDir );
         Files.walkFileTree( dir, visitor );
         return visitor.getChunks();
     }
@@ -202,17 +222,17 @@ public class ZipArchiver implements Archiver {
 
     private static Path unpartFile( Path path ) {
         String fileName = path.getFileName().toString();
-        if ( fileName.matches( ".*part.[0-9]+" ) ) {
-            fileName = fileName.substring( 0, fileName.indexOf( ".part" ) );
-            return path.getParent().resolve( fileName );
+        if ( fileName.matches( ".*part.[0-9]+.*" ) ) {
+            String baseName = fileName.substring( 0, fileName.indexOf( ".part" ) );
+            String extension = fileName.substring( fileName.lastIndexOf( "." ) );
+            return path.getParent().resolve( baseName + extension );
         }
         return path;
     }
 
     /**
-     * A file visitor that chunks file paths such that each chunk does not exceed max file size. This class
-     * asserts that a single path does not exceed max file size, otherwise an {@link IllegalArgumentException} is
-     * thrown.
+     * A file visitor that chunks file paths such that each chunk does not exceed max file size. This class asserts that
+     * a single path does not exceed max file size, otherwise an {@link IllegalArgumentException} is thrown.
      */
     private static class ChunkingFileVisitor extends SimpleFileVisitor<Path> {
 
@@ -224,8 +244,11 @@ public class ZipArchiver implements Archiver {
 
         private CompressionOptions options;
 
-        public ChunkingFileVisitor( CompressionOptions options ) {
+        private final Path tempDir;
+
+        public ChunkingFileVisitor( CompressionOptions options, Path tempDir ) {
             this.options = options;
+            this.tempDir = tempDir;
         }
 
         public List<List<Path>> getChunks() {
@@ -242,11 +265,13 @@ public class ZipArchiver implements Archiver {
 
         @Override
         public FileVisitResult visitFile( Path file, BasicFileAttributes attrs ) throws IOException {
+            if ( file.getFileName().toString().equals( ".DS_Store" ) )
+                return FileVisitResult.CONTINUE;
             super.visitFile( file, attrs );
             long size = Files.size( file );
             if ( getMaxFileSize() > 0 && size + currentChunkSize > getMaxFileSize() ) {
                 if ( size > getMaxFileSize() ) {
-                    for ( Path part : refine( file, size ) ) {
+                    for ( Path part : refine( file, size, tempDir ) ) {
                         visitFile( part, attrs );
                     }
                     return FileVisitResult.CONTINUE;
@@ -294,16 +319,17 @@ public class ZipArchiver implements Archiver {
          * @return list of parts that were generated
          * @throws IOException when splitting fails
          */
-        private List<Path> refine( Path path, long size ) throws IOException {
+        private List<Path> refine( Path path, long size, Path tempDir ) throws IOException {
             List<Path> createdParts = new ArrayList<>();
             long parts = size / getMaxFileSize();
-            long sizePerPart = getMaxFileSize() / parts;
+            long sizePerPart = getMaxFileSize();
             long remainingSize = size % getMaxFileSize();
             int bufferSize = 1024;
 
             try ( InputStream is = Files.newInputStream( path ) ) {
                 for ( int i = 0; i < parts; i++ ) {
-                    Path part = partFile( path, "" + i );
+                    Path part = tempDir.resolve( options.getInput().relativize( partFile( path, "" + i ) ).toString() );
+                    Files.createDirectories( part.getParent() );
                     OutputStream bw = Files.newOutputStream( part );
                     if ( sizePerPart > bufferSize ) {
                         long numReads = sizePerPart / bufferSize;
@@ -321,7 +347,7 @@ public class ZipArchiver implements Archiver {
                     bw.close();
                 }
                 if ( remainingSize > 0 ) {
-                    Path part = partFile( path, "" + parts );
+                    Path part = tempDir.resolve( options.getInput().relativize( partFile( path, "" + parts ) ).toString() );
                     try ( OutputStream bw = Files.newOutputStream( part ) ) {
                         readWrite( is, bw, remainingSize );
                         createdParts.add( part );

@@ -132,7 +132,7 @@ public class ZipArchiverDecompressionTest {
                     .input( input )
                     .output( output )
                     .build() );
-            assertEquals( 1500, Files.readAllBytes( output.resolve( "file" ) ).length );
+            assertEquals( 1500, Files.readAllBytes( output.resolve( "file.txt" ) ).length );
         }
     }
 
